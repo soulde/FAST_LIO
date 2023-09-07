@@ -43,12 +43,7 @@ find_package(tf2 REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(livox_ros_driver2 REQUIRED)
-#
-#rosidl_generate_interfaces(${PROJECT_NAME}
-#        "msg/Pose6D.msg"
-#        DEPENDENCIES builtin_interfaces
-#        LIBRARY_NAME ${PROJECT_NAME}
-#        )
+
 if (BUILD_TESTING)
     find_package(ament_lint_auto REQUIRED)
     # the following line skips the linter which checks for copyrights
