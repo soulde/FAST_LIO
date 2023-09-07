@@ -26,6 +26,7 @@ else ()
     add_definitions(-DMP_PROC_NUM=1)
 endif ()
 
+
 find_package(OpenMP QUIET)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}   ${OpenMP_C_FLAGS}")
@@ -42,13 +43,12 @@ find_package(tf2 REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(livox_ros_driver2 REQUIRED)
-
-rosidl_generate_interfaces(${PROJECT_NAME}
-        "msg/Pose6D.msg"
-        "msg/Test.msg"
-        DEPENDENCIES builtin_interfaces
-        LIBRARY_NAME ${PROJECT_NAME}
-        )
+#
+#rosidl_generate_interfaces(${PROJECT_NAME}
+#        "msg/Pose6D.msg"
+#        DEPENDENCIES builtin_interfaces
+#        LIBRARY_NAME ${PROJECT_NAME}
+#        )
 if (BUILD_TESTING)
     find_package(ament_lint_auto REQUIRED)
     # the following line skips the linter which checks for copyrights

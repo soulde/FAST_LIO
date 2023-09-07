@@ -139,9 +139,9 @@ private:
 
     std::shared_ptr<std::thread> thread;
 
-    void pc2Callback(const livox_ros_driver2::msg::CustomMsg::SharedPtr msg);
+    void pc2Callback(const livox_ros_driver2::msg::CustomMsg& msg);
 
-    void imuCallback(const sensor_msgs::msg::Imu::SharedPtr msg);
+    void imuCallback(const sensor_msgs::msg::Imu& msg);
 
     void fusionThread();
 

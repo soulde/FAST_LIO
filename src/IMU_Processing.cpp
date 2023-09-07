@@ -5,6 +5,7 @@
 #include "IMU_Processing.hpp"
 
 const bool time_list(PointType &x, PointType &y) { return (x.curvature < y.curvature); };
+
 ImuProcess::ImuProcess()
         : start_timestamp_(-1), b_first_frame_(true), imu_need_init_(true) {
     init_iter_num = 1;
@@ -251,7 +252,6 @@ void ImuProcess::Process(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 1
     t1 = omp_get_wtime();
 
     if (meas.imu.empty()) { return; };
-//    ROS_ASSERT(meas.lidar != nullptr);
 
     if (imu_need_init_) {
         /// The very first lidar frame

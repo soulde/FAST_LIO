@@ -43,7 +43,6 @@ Fast_Lio::Fast_Lio() : rclcpp::Node("fast_lio"), extrinT(3, 0.0), extrinR(9, 0.0
     p_pre->time_unit = this->declare_parameter<int>("timestamp_unit", US);
     p_pre->SCAN_RATE = this->declare_parameter<int>("scan_rate", 10);
     p_pre->point_filter_num = this->declare_parameter<int>("point_filter_num", 2);
-    p_pre->feature_enabled = this->declare_parameter<bool>("feature_extract_enable", false);
     runtime_pos_log = this->declare_parameter<bool>("runtime_pos_log_enable", 0);
     extrinsic_est_en = this->declare_parameter<bool>("extrinsic_est_en", true);
     pcd_save_en = this->declare_parameter<bool>("pcd_save_en", false);
@@ -77,7 +76,7 @@ Fast_Lio::Fast_Lio() : rclcpp::Node("fast_lio"), extrinT(3, 0.0), extrinR(9, 0.0
     this->get_parameter("timestamp_unit", p_pre->time_unit);
     this->get_parameter("scan_rate", p_pre->SCAN_RATE);
     this->get_parameter("point_filter_num", p_pre->point_filter_num);
-    this->get_parameter("feature_extract_enable", p_pre->feature_enabled);
+
     this->get_parameter("runtime_pos_log_enable", runtime_pos_log);
     this->get_parameter("extrinsic_est_en", extrinsic_est_en);
     this->get_parameter("pcd_save_en", pcd_save_en);
@@ -142,16 +141,16 @@ Fast_Lio::Fast_Lio() : rclcpp::Node("fast_lio"), extrinT(3, 0.0), extrinR(9, 0.0
         cout << "~~~~" << root_dir << " doesn't exist" << endl;
 }
 
-void Fast_Lio::pc2Callback(const livox_ros_driver2::msg::CustomMsg::SharedPtr msg) {
+void Fast_Lio::pc2Callback(const livox_ros_driver2::msg::CustomMsg& msg) {
     mtx_buffer.lock();
     double preprocess_start_time = omp_get_wtime();
     scan_count++;
-    if (rclcpp::Time(msg->header.stamp).seconds() < last_timestamp_lidar) {
+    if (rclcpp::Time(msg.header.stamp).seconds() < last_timestamp_lidar) {
         RCLCPP_ERROR(get_logger(), "lidar loop back, clear buffer");
         lidar_buffer.clear();
     }
-    last_timestamp_lidar = rclcpp::Time(msg->header.stamp).seconds();
-    std::cout << "in cloud callback" << std::endl;
+    last_timestamp_lidar = rclcpp::Time(msg.header.stamp).seconds();
+
     if (!time_sync_en && abs(last_timestamp_imu - last_timestamp_lidar) > 10.0 && !imu_buffer.empty() &&
         !lidar_buffer.empty()) {
         printf("IMU and LiDAR not Synced, IMU time: %lf, lidar header time: %lf \n", last_timestamp_imu,
@@ -175,13 +174,13 @@ void Fast_Lio::pc2Callback(const livox_ros_driver2::msg::CustomMsg::SharedPtr ms
     sig_buffer.notify_all();
 }
 
-void Fast_Lio::imuCallback(const sensor_msgs::msg::Imu::SharedPtr msg_in) {
+void Fast_Lio::imuCallback(const sensor_msgs::msg::Imu& msg_in) {
     publish_count++;
-    // cout<<"IMU got at: "<<msg_in->header.stamp.toSec()<<endl;
-    sensor_msgs::msg::Imu::SharedPtr msg(new sensor_msgs::msg::Imu(*msg_in));
-    msg->header.stamp = rclcpp::Time((rclcpp::Time(msg_in->header.stamp).seconds() - time_diff_lidar_to_imu) * 1e9);
+
+    sensor_msgs::msg::Imu::SharedPtr msg(new sensor_msgs::msg::Imu(msg_in));
+    msg->header.stamp = rclcpp::Time((rclcpp::Time(msg_in.header.stamp).seconds() - time_diff_lidar_to_imu) * 1e9);
     if (abs(timediff_lidar_wrt_imu) > 0.1 && time_sync_en) {
-        msg->header.stamp = rclcpp::Time((timediff_lidar_wrt_imu + rclcpp::Time(msg_in->header.stamp).seconds())*10e9);
+        msg->header.stamp = rclcpp::Time((timediff_lidar_wrt_imu + rclcpp::Time(msg_in.header.stamp).seconds())*1e9);
     }
 
     double timestamp = rclcpp::Time(msg->header.stamp).seconds();
@@ -189,10 +188,10 @@ void Fast_Lio::imuCallback(const sensor_msgs::msg::Imu::SharedPtr msg_in) {
     mtx_buffer.lock();
 
     if (timestamp < last_timestamp_imu) {
-//        ROS_WARN("imu loop back, clear buffer");
+        RCLCPP_WARN(get_logger(), "imu loop back, clear buffer");
         imu_buffer.clear();
     }
-//    std::cout << "in imu callback" << std::endl;
+
     last_timestamp_imu = timestamp;
 
     imu_buffer.push_back(msg);
@@ -225,19 +224,19 @@ void Fast_Lio::fusionThread() {
             state_point = kf.get_x();
             pos_lid = state_point.pos + state_point.rot * state_point.offset_T_L_I;
 
-            if (feats_undistort->empty() || (feats_undistort == NULL)) {
+            if (feats_undistort->empty() || (feats_undistort == nullptr)) {
                 RCLCPP_INFO(this->get_logger(), "No point, skip this scan!\n");
                 continue;
             }
 
-            flg_EKF_inited = (Measures.lidar_beg_time - first_lidar_time) < INIT_TIME ? \
-                            false : true;
+            flg_EKF_inited = (Measures.lidar_beg_time - first_lidar_time) >= INIT_TIME;
             /*** Segment the map in lidar FOV ***/
             lasermap_fov_segment();
 
             /*** downsample the feature points in a scan ***/
             downSizeFilterSurf.setInputCloud(feats_undistort);
             downSizeFilterSurf.filter(*feats_down_body);
+
             t1 = omp_get_wtime();
             feats_down_size = feats_down_body->points.size();
             /*** initialize the map kdtree ***/
@@ -292,9 +291,8 @@ void Fast_Lio::fusionThread() {
             double t_update_start = omp_get_wtime();
             double solve_H_time = 0;
 
-            std::cout << "update pose" << std::endl;
             kf.update_iterated_dyn_share_modified(LASER_POINT_COV, solve_H_time);
-            std::cout << "updated pose" << std::endl;
+
             state_point = kf.get_x();
             euler_cur = SO3ToEuler(state_point.rot);
             pos_lid = state_point.pos + state_point.rot * state_point.offset_T_L_I;
@@ -304,7 +302,7 @@ void Fast_Lio::fusionThread() {
             geoQuat.w = state_point.rot.coeffs()[3];
 
             double t_update_end = omp_get_wtime();
-            std::cout << "start publish" << std::endl;
+
             /******* Publish odometry *******/
             publish_odometry(pub_odom);
 
@@ -363,9 +361,9 @@ void Fast_Lio::fusionThread() {
                          << state_point.offset_T_L_I.transpose() << " " << state_point.vel.transpose() \
  << " " << state_point.bg.transpose() << " " << state_point.ba.transpose() << " " << state_point.grav << " "
                          << feats_undistort->points.size() << endl;
-                std::cout << "here2" << std::endl;
+
 //                dump_lio_state_to_log(fp);
-                std::cout << "here3" << std::endl;
+
             }
         }
         rate.sleep();
