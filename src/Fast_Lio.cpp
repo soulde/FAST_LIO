@@ -49,7 +49,7 @@ Fast_Lio::Fast_Lio() : rclcpp::Node("fast_lio"), extrinT(3, 0.0), extrinR(9, 0.0
     pcd_save_interval = this->declare_parameter<int>("interval", -1);
     extrinT = this->declare_parameter<vector<double>>("extrinsic_T", vector<double>(3));
     extrinR = this->declare_parameter<vector<double>>("extrinsic_R", vector<double>(9));
-
+    root_dir = this->declare_parameter<string >("root_dir", "/home/soulde/lio_ws/src/fast_lio");
     this->get_parameter("path_en", path_en);
     this->get_parameter("scan_publish_en", scan_pub_en);
     this->get_parameter("dense_publish_en", dense_pub_en);
@@ -83,7 +83,7 @@ Fast_Lio::Fast_Lio() : rclcpp::Node("fast_lio"), extrinT(3, 0.0), extrinR(9, 0.0
     this->get_parameter("interval", pcd_save_interval);
     this->get_parameter("extrinsic_T", extrinT);
     this->get_parameter("extrinsic_R", extrinR);
-
+    this->get_parameter("root_dir", root_dir);
 
     sub_pc = this->create_subscription<livox_ros_driver2::msg::CustomMsg>(lid_topic, 200000,
                                                                           std::bind(&Fast_Lio::pc2Callback, this,
